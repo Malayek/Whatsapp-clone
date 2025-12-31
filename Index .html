@@ -1,0 +1,698 @@
+<script>
+  // ====== BASIC DATA ======
+  const chatListEl = document.getElementById('chat-list');
+  const chatBodyEl = document.getElementById('chat-body');
+  const placeholderEl = document.getElementById('chat-placeholder');
+  const headerNameEl = document.getElementById('header-name');
+  const headerStatusEl = document.getElementById('header-status');
+  const headerAvatarEl = document.getElementById('header-avatar');
+  const currentUserAvatarEl = document.getElementById('current-user-avatar');
+  const messageInputEl = document.getElementById('message-input');
+  const sendBtnEl = document.getElementById('send-btn');
+  const searchInputEl = document.getElementById('search-input');
+  const btnAddMemberEl = document.getElementById('btn-add-member');
+  const btnNewGroupEl = document.getElementById('btn-new-group');
+  const btnNewChatEl = document.getElementById('btn-new-chat');
+  const btnLinkDeviceEl = document.getElementById('btn-link-device');
+  const btnVoiceCallEl = document.getElementById('btn-voice-call');
+  const btnFakeIncomingEl = document.getElementById('btn-fake-incoming');
+  const deviceSwitchEl = document.getElementById('device-switch');
+  const deviceLabelMainEl = document.getElementById('device-label-main');
+  const deviceBarMainEl = document.getElementById('device-bar-main');
+  const toastEl = document.getElementById('toast');
+
+  const callOverlayEl = document.getElementById('call-overlay');
+  const callTitleEl = document.getElementById('call-title');
+  const callStatusEl = document.getElementById('call-status');
+  const callAvatarEl = document.getElementById('call-avatar');
+  const callDeviceLabelEl = document.getElementById('call-device-label');
+  const callAcceptEl = document.getElementById('call-accept');
+  const callEndEl = document.getElementById('call-end');
+
+  const emojiButton = document.querySelector('.chat-input-area .chat-input-icon'); // first emoji icon
+
+  const currentUser = {
+    id: 'me',
+    name: 'You',
+    initials: 'U',
+    devices: [
+      'Chrome on PC',
+      'Android phone',
+      'Laptop (Edge)',
+      'Tablet (Safari)'
+    ],
+    activeDeviceIndex: 0
+  };
+
+  // ====== INITIAL CHATS, INCLUDING AI FRIEND ======
+  let chats = [
+    {
+      id: 'ai1',
+      name: 'AI Friend (Online)',
+      number: 'AI-0001',
+      isGroup: false,
+      members: ['You', 'AI Friend'],
+      lastMessage: 'Hi, I am always online for you 🙂',
+      lastTime: '20:00',
+      unread: 0,
+      messages: [
+        {
+          from: 'AI Friend',
+          text: 'Hi, I am always online for you 🙂',
+          time: '20:00',
+          direction: 'in',
+          sent: true,
+          delivered: true,
+          read: true
+        }
+      ]
+    },
+    {
+      id: 'c1',
+      name: 'Family',
+      number: 'Family group',
+      isGroup: true,
+      members: ['You', 'Mum', 'Dad', 'Sister'],
+      lastMessage: 'Dinner at 8?',
+      lastTime: '21:05',
+      unread: 2,
+      messages: [
+        {
+          from: 'Mum',
+          text: 'Don’t forget to bring bread.',
+          time: '21:02',
+          direction: 'in',
+          sent: true,
+          delivered: true,
+          read: false
+        },
+        {
+          from: 'You',
+          text: 'Okay, I will.',
+          time: '21:03',
+          direction: 'out',
+          sent: true,
+          delivered: true,
+          read: false
+        },
+        {
+          from: 'Dad',
+          text: 'Dinner at 8?',
+          time: '21:05',
+          direction: 'in',
+          sent: true,
+          delivered: true,
+          read: false
+        }
+      ]
+    },
+    {
+      id: 'c2',
+      name: 'Dev Friend',
+      number: '+92 3XX XXX XXXX',
+      isGroup: false,
+      members: ['You', 'Ali'],
+      lastMessage: 'Push latest code?',
+      lastTime: '19:10',
+      unread: 0,
+      messages: [
+        {
+          from: 'Ali',
+          text: 'Push latest code?',
+          time: '19:10',
+          direction: 'in',
+          sent: true,
+          delivered: true,
+          read: false
+        }
+      ]
+    }
+  ];
+
+  let activeChatId = null;
+  let callTimer = null;
+  let callSeconds = 0;
+  let callRunning = false;
+  let linkedDeviceMocked = false;
+  let toastTimeout = null;
+  let aiTypingTimeout = null;
+
+  // ====== SMALL EMOJI PICKER (COMMON EMOJIS) ======
+  const quickEmojis = [
+    '😀','😁','😂','🤣','😊','😍','😘','😎','😢','😭','😡','😱',
+    '👍','👎','🙏','👏','💪','❤️','💔','✨','🔥','⭐','😴','🤔',
+    '😇','😈','🤗','😅','😉','😜','😋','🤩','🤯','😤'
+  ];[web:83][web:86]
+
+  let emojiMenuEl = null;
+  function buildEmojiMenu() {
+    emojiMenuEl = document.createElement('div');
+    emojiMenuEl.style.position = 'absolute';
+    emojiMenuEl.style.bottom = '50px';
+    emojiMenuEl.style.left = '40px';
+    emojiMenuEl.style.background = '#202c33';
+    emojiMenuEl.style.borderRadius = '8px';
+    emojiMenuEl.style.padding = '6px';
+    emojiMenuEl.style.display = 'none';
+    emojiMenuEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.6)';
+    emojiMenuEl.style.maxWidth = '220px';
+    emojiMenuEl.style.flexWrap = 'wrap';
+    emojiMenuEl.style.zIndex = '10';
+    emojiMenuEl.style.fontSize = '20px';
+    emojiMenuEl.style.display = 'none';
+    emojiMenuEl.style.display = 'flex';
+    emojiMenuEl.style.flexWrap = 'wrap';
+    emojiMenuEl.style.display = 'none';
+
+    quickEmojis.forEach(e => {
+      const span = document.createElement('span');
+      span.textContent = e;
+      span.style.cursor = 'pointer';
+      span.style.margin = '4px';
+      span.addEventListener('click', () => {
+        messageInputEl.value += e;
+      });
+      emojiMenuEl.appendChild(span);
+    });
+
+    document.body.appendChild(emojiMenuEl);
+  }
+
+  function toggleEmojiMenu() {
+    if (!emojiMenuEl) return;
+    if (emojiMenuEl.style.display === 'none' || emojiMenuEl.style.display === '') {
+      emojiMenuEl.style.display = 'flex';
+    } else {
+      emojiMenuEl.style.display = 'none';
+    }
+  }
+
+  // ====== HELPERS ======
+  function getInitials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  function formatTime(date = new Date()) {
+    const h = date.getHours().toString().padStart(2, '0');
+    const m = date.getMinutes().toString().padStart(2, '0');
+    return h + ':' + m;
+  }
+
+  function showToast(message) {
+    toastEl.textContent = message;
+    toastEl.style.display = 'block';
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toastEl.style.display = 'none';
+    }, 2600);
+  }
+
+  // ====== RENDER CHATS ======
+  function renderChats(filterText = '') {
+    chatListEl.innerHTML = '';
+    const text = filterText.toLowerCase();
+
+    chats.forEach(chat => {
+      if (text && !chat.name.toLowerCase().includes(text) && !(chat.number || '').toLowerCase().includes(text)) {
+        return;
+      }
+
+      const item = document.createElement('div');
+      item.className = 'chat-item' + (chat.id === activeChatId ? ' active' : '');
+      item.dataset.chatId = chat.id;
+
+      const avatar = document.createElement('div');
+      avatar.className = 'chat-avatar';
+      avatar.textContent = getInitials(chat.name);
+
+      const info = document.createElement('div');
+      info.className = 'chat-info';
+
+      const top = document.createElement('div');
+      top.className = 'chat-top';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'chat-name';
+      nameEl.textContent = chat.name;
+
+      const timeEl = document.createElement('div');
+      timeEl.className = 'chat-time';
+      timeEl.textContent = chat.lastTime || '';
+
+      top.appendChild(nameEl);
+      top.appendChild(timeEl);
+
+      const lastMsgEl = document.createElement('div');
+      lastMsgEl.className = 'chat-last-msg';
+      lastMsgEl.textContent = chat.lastMessage || '';
+
+      info.appendChild(top);
+      info.appendChild(lastMsgEl);
+
+      const meta = document.createElement('div');
+      meta.className = 'chat-meta';
+
+      const numberEl = document.createElement('div');
+      numberEl.className = 'chat-number';
+      numberEl.textContent = chat.number || '';
+      meta.appendChild(numberEl);
+
+      if (chat.unread && chat.unread > 0) {
+        const unreadBadge = document.createElement('div');
+        unreadBadge.className = 'unread-badge';
+        unreadBadge.textContent = chat.unread;
+        meta.appendChild(unreadBadge);
+      }
+
+      item.appendChild(avatar);
+      item.appendChild(info);
+      item.appendChild(meta);
+
+      item.addEventListener('click', () => {
+        setActiveChat(chat.id);
+      });
+
+      chatListEl.appendChild(item);
+    });
+  }
+
+  // ====== RENDER ACTIVE CHAT ======
+  function setActiveChat(chatId) {
+    activeChatId = chatId;
+    chats = chats.map(c => {
+      if (c.id === chatId) return { ...c, unread: 0 };
+      return c;
+    });
+    renderChats(searchInputEl.value);
+
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+
+    placeholderEl.style.display = 'none';
+    chatBodyEl.innerHTML = '';
+
+    headerNameEl.textContent = chat.name;
+    headerAvatarEl.textContent = getInitials(chat.name);
+    const numberText = chat.number ? 'Number: ' + chat.number + ' • ' : '';
+    const membersText = chat.members && chat.members.length
+      ? chat.members.join(', ')
+      : 'Members appear here';
+    headerStatusEl.textContent = numberText + (chat.isGroup ? 'Group • ' : '') + membersText;
+
+    const dayDivider = document.createElement('div');
+    dayDivider.className = 'day-divider';
+    const span = document.createElement('span');
+    span.textContent = 'Today';
+    dayDivider.appendChild(span);
+    chatBodyEl.appendChild(dayDivider);
+
+    chat.messages.forEach(msg => {
+      const row = document.createElement('div');
+      row.className = 'message-row ' + (msg.direction === 'out' ? 'out' : 'in');
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+
+      if (chat.isGroup && msg.direction === 'in' && chat.id !== 'ai1') {
+        const senderEl = document.createElement('div');
+        senderEl.className = 'message-sender';
+        senderEl.textContent = msg.from || 'Member';
+        bubble.appendChild(senderEl);
+      }
+
+      const textEl = document.createElement('div');
+      textEl.className = 'message-text';
+      textEl.textContent = msg.text;
+      bubble.appendChild(textEl);
+
+      const meta = document.createElement('div');
+      meta.className = 'message-meta';
+      const timeEl = document.createElement('span');
+      timeEl.textContent = msg.time || '';
+      meta.appendChild(timeEl);
+
+      if (msg.direction === 'out') {
+        // ticks: single, double grey, double blue
+        const ticks = document.createElement('span');
+        ticks.style.marginLeft = '4px';
+        if (msg.read) {
+          ticks.textContent = ' ✓✓';
+          ticks.style.color = '#34b7f1'; // blue
+        } else if (msg.delivered) {
+          ticks.textContent = ' ✓✓';
+          ticks.style.color = '#667781';
+        } else if (msg.sent) {
+          ticks.textContent = ' ✓';
+          ticks.style.color = '#667781';
+        } else {
+          ticks.textContent = '';
+        }
+        meta.appendChild(ticks);
+      }
+
+      bubble.appendChild(meta);
+      row.appendChild(bubble);
+      chatBodyEl.appendChild(row);
+    });
+
+    chatBodyEl.scrollTop = chatBodyEl.scrollHeight;
+  }
+
+  // ====== SEND MESSAGE (USER) ======
+  function sendMessage() {
+    const text = messageInputEl.value.trim();
+    if (!text || !activeChatId) return;
+
+    const chat = chats.find(c => c.id === activeChatId);
+    if (!chat) return;
+
+    const time = formatTime();
+    const newMsg = {
+      from: currentUser.name,
+      text,
+      time,
+      direction: 'out',
+      sent: true,
+      delivered: true,
+      read: false
+    };
+    chat.messages.push(newMsg);
+    chat.lastMessage = text;
+    chat.lastTime = time;
+
+    chats = chats.map(c => (c.id === chat.id ? chat : c));
+
+    messageInputEl.value = '';
+    setActiveChat(activeChatId);
+
+    if (chat.id === 'ai1') {
+      aiHandleUserMessage(text);
+    }
+  }
+
+  // ====== ADD MEMBER ======
+  function addMemberToChat() {
+    if (!activeChatId) {
+      alert('Select a chat first, then add members.');
+      return;
+    }
+    const chat = chats.find(c => c.id === activeChatId);
+    if (!chat) return;
+
+    const name = prompt('Enter member name to add to "' + chat.name + '":');
+    if (!name) return;
+    if (!chat.members) chat.members = [];
+    chat.members.push(name.trim());
+    chat.isGroup = chat.members.length > 2;
+
+    headerStatusEl.textContent =
+      (chat.number ? 'Number: ' + chat.number + ' • ' : '') +
+      (chat.isGroup ? 'Group • ' : '') +
+      chat.members.join(', ');
+
+    const sysMsg = {
+      from: 'System',
+      text: name.trim() + ' joined the chat.',
+      time: formatTime(),
+      direction: 'in',
+      sent: true,
+      delivered: true,
+      read: false
+    };
+    chat.messages.push(sysMsg);
+    chat.lastMessage = sysMsg.text;
+    chat.lastTime = sysMsg.time;
+
+    chats = chats.map(c => (c.id === chat.id ? chat : c));
+    renderChats(searchInputEl.value);
+    setActiveChat(activeChatId);
+  }
+
+  // ====== CREATE NEW CHAT OR GROUP ======
+  function createNewChat(isGroup) {
+    const name = prompt(isGroup ? 'Enter group name:' : 'Enter contact name:');
+    if (!name) return;
+
+    let number = '';
+    if (!isGroup) {
+      number = prompt('Enter contact number (e.g. +92 3XX XXX XXXX):') || '';
+    } else {
+      number = prompt('Optional: group description or number label (e.g. Family group):') || '';
+    }
+
+    const id = 'c' + Date.now();
+    const baseMembers = [currentUser.name];
+    const members = isGroup ? baseMembers : baseMembers.concat([name.trim()]);
+    const chat = {
+      id,
+      name: name.trim(),
+      number: number.trim(),
+      isGroup: !!isGroup,
+      members,
+      lastMessage: '',
+      lastTime: '',
+      unread: 0,
+      messages: []
+    };
+    chats.unshift(chat);
+    renderChats(searchInputEl.value);
+    setActiveChat(id);
+    showToast('Chat created locally with number ' + (number.trim() || '(none)') + ' (mock)');
+  }
+
+  function simulateLinkDevice() {
+    linkedDeviceMocked = true;
+    showToast('Linked device added (mock only, not real network)');
+  }
+
+  function cycleDevice() {
+    currentUser.activeDeviceIndex =
+      (currentUser.activeDeviceIndex + 1) % currentUser.devices.length;
+    const label = currentUser.devices[currentUser.activeDeviceIndex];
+    deviceLabelMainEl.textContent = 'This device: ' + label;
+    deviceBarMainEl.textContent = label;
+    callDeviceLabelEl.textContent = 'This device: ' + label + ' (mock)';
+    showToast('Device label switched to: ' + label);
+  }
+
+  // ====== FAKE INCOMING MESSAGE (NON-AI CHATS) ======
+  function fakeIncomingMessage() {
+    if (!activeChatId) {
+      alert('Select a chat first to receive a fake message.');
+      return;
+    }
+    const chat = chats.find(c => c.id === activeChatId);
+    if (!chat || chat.id === 'ai1') return;
+
+    const fromName = chat.isGroup
+      ? (chat.members.find(m => m !== currentUser.name) || 'Member')
+      : (chat.members.find(m => m !== currentUser.name) || chat.name);
+
+    const textOptions = [
+      'Hey, replying from linked device (mock).',
+      'This is a fake incoming message.',
+      'Imagine this came from your phone.',
+      'Testing multi-device mock!'
+    ];
+    const text = textOptions[Math.floor(Math.random() * textOptions.length)];
+
+    const time = formatTime();
+    const msg = {
+      from: fromName,
+      text,
+      time,
+      direction: 'in',
+      sent: true,
+      delivered: true,
+      read: false
+    };
+    chat.messages.push(msg);
+    chat.lastMessage = text;
+    chat.lastTime = time;
+
+    chat.unread = (chat.unread || 0) + 1;
+    chats = chats.map(c => (c.id === chat.id ? chat : c));
+
+    showToast('New message from ' + fromName + ' (mock)');
+    setActiveChat(activeChatId);
+  }
+
+  // ====== CALL OVERLAY ======
+  function showCallOverlay() {
+    if (!activeChatId) {
+      alert('Select a chat before calling.');
+      return;
+    }
+    const chat = chats.find(c => c.id === activeChatId);
+    if (!chat) return;
+
+    callOverlayEl.style.display = 'flex';
+    callTitleEl.textContent = 'Voice call with ' + chat.name;
+    callStatusEl.textContent = 'Calling…';
+    callAvatarEl.textContent = getInitials(chat.name);
+    callSeconds = 0;
+    callRunning = false;
+  }
+
+  function startCallTimer() {
+    if (callRunning) return;
+    callRunning = true;
+    callStatusEl.textContent = 'Connecting…';
+
+    setTimeout(() => {
+      if (!callRunning) return;
+      callStatusEl.textContent = '00:00';
+      callSeconds = 0;
+      callTimer = setInterval(() => {
+        callSeconds += 1;
+        const mins = Math.floor(callSeconds / 60)
+          .toString()
+          .padStart(2, '0');
+        const secs = (callSeconds % 60).toString().padStart(2, '0');
+        callStatusEl.textContent = mins + ':' + secs;
+      }, 1000);
+    }, 700);
+  }
+
+  function endCall() {
+    callOverlayEl.style.display = 'none';
+    callRunning = false;
+    if (callTimer) clearInterval(callTimer);
+    callTimer = null;
+  }
+
+  // ====== SIMPLE AI BRAIN (LOCAL, RULE-BASED) ======
+  const aiCalmReplies = [
+    "Hey, breathe. I'm here with you, you're not alone.",
+    "I can feel you're upset. Talk to me, what happened?",
+    "You're important. Let's solve this one step at a time.",
+    "It's okay to be angry. I'm staying calm for both of us."
+  ];
+  const aiHelpReplies = [
+    "Tell me exactly what you need help with, and we'll break it into simple steps.",
+    "I'm listening. What is confusing you right now?",
+    "You can ask me about school, tech, feelings, anything. Start with one question.",
+    "Okay, I'm in full help mode. Explain the problem slowly."
+  ];
+  const aiHappyReplies = [
+    "Haha, that sounds fun! Tell me more 😄",
+    "Love your energy right now!",
+    "Nice! I'm happy you shared this with me.",
+    "That made me smile 😊"
+  ];
+  const aiNormalReplies = [
+    "I'm here, fully online. What do you want to talk about?",
+    "I can chat about anything: games, school, life, code, feelings.",
+    "Ask me anything, I'm listening.",
+    "I will try my best to answer like a real friend."
+  ];
+
+  function detectMood(text) {
+    const lower = text.toLowerCase();
+
+    const angryWords = ['hate','stupid','angry','annoying','idiot','trash'];
+    const sadWords = ['sad','cry','upset','alone','depressed','tired','scared'];
+    const helpWords = ['help','how','why','what','when','where','question','hw','homework','study'];
+    const happyWords = ['love','haha','lol','😂','😄','😀','great','awesome'];
+
+    if (angryWords.some(w => lower.includes(w))) return 'angry';
+    if (sadWords.some(w => lower.includes(w))) return 'sad';
+    if (helpWords.some(w => lower.includes(w))) return 'help';
+    if (happyWords.some(w => lower.includes(w))) return 'happy';
+    return 'neutral';
+  }
+
+  function pickRandom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function aiHandleUserMessage(text) {
+    const chat = chats.find(c => c.id === 'ai1');
+    if (!chat) return;
+
+    if (aiTypingTimeout) clearTimeout(aiTypingTimeout);
+
+    const originalStatus = headerStatusEl.textContent;
+    headerStatusEl.textContent = 'typing…';
+
+    const mood = detectMood(text);
+    let reply;
+    if (mood === 'angry' || mood === 'sad') {
+      reply = pickRandom(aiCalmReplies);
+    } else if (mood === 'help') {
+      reply = pickRandom(aiHelpReplies);
+    } else if (mood === 'happy') {
+      reply = pickRandom(aiHappyReplies);
+    } else {
+      reply = pickRandom(aiNormalReplies);
+    }
+
+    aiTypingTimeout = setTimeout(() => {
+      headerStatusEl.textContent = originalStatus;
+
+      const time = formatTime();
+      const msg = {
+        from: 'AI Friend',
+        text: reply,
+        time,
+        direction: 'in',
+        sent: true,
+        delivered: true,
+        read: true
+      };
+
+      chat.messages.push(msg);
+      chat.lastMessage = reply;
+      chat.lastTime = time;
+
+      // mark last user message as read (blue ticks)
+      const lastUserMsg = [...chat.messages].reverse().find(m => m.direction === 'out');
+      if (lastUserMsg) {
+        lastUserMsg.read = true;
+      }
+
+      chats = chats.map(c => (c.id === chat.id ? chat : c));
+      setActiveChat('ai1');
+      showToast('AI Friend replied (local mock)');
+    }, 900 + Math.random() * 800);
+  }
+
+  // ====== INITIAL SETUP ======
+  currentUserAvatarEl.textContent = currentUser.initials;
+  deviceLabelMainEl.textContent = 'This device: ' + currentUser.devices[currentUser.activeDeviceIndex];
+  deviceBarMainEl.textContent = currentUser.devices[currentUser.activeDeviceIndex];
+  callDeviceLabelEl.textContent = 'This device: ' + currentUser.devices[currentUser.activeDeviceIndex] + ' (mock)';
+
+  sendBtnEl.addEventListener('click', sendMessage);
+  messageInputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  searchInputEl.addEventListener('input', () => {
+    renderChats(searchInputEl.value);
+  });
+
+  btnAddMemberEl.addEventListener('click', addMemberToChat);
+  btnNewGroupEl.addEventListener('click', () => createNewChat(true));
+  btnNewChatEl.addEventListener('click', () => createNewChat(false));
+  btnLinkDeviceEl.addEventListener('click', simulateLinkDevice);
+  btnVoiceCallEl.addEventListener('click', showCallOverlay);
+  btnFakeIncomingEl.addEventListener('click', fakeIncomingMessage);
+  deviceSwitchEl.addEventListener('click', cycleDevice);
+
+  callAcceptEl.addEventListener('click', startCallTimer);
+  callEndEl.addEventListener('click', endCall);
+
+  if (emojiButton) {
+    emojiButton.addEventListener('click', toggleEmojiMenu);
+  }
+  buildEmojiMenu();
+
+  renderChats();
+</script>
